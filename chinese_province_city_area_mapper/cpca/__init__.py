@@ -1,23 +1,8 @@
 # -*- coding: utf-8 -*-
 # __init__.py
 
-LogOut = True
-def Log(st):
-    if LogOut:
-        print(st)
-
-import copy
-from io import TextIOWrapper
-import csv
-
+##============Jieba User Dict============## 
 import jieba
-
-from .structures import *
-
-VERSION = (0, 4, 4)
-
-__version__ = ".".join([str(x) for x in VERSION])
-
 ## 向分词库添加行政区名称使其得以被识别
 jieba.add_word("西乡塘区")
 
@@ -26,11 +11,35 @@ jieba.del_word("吉林省延边朝鲜族自治州")
 jieba.del_word("上海市浦东新区")
 
 
-# Global variable
+##============Import Phase============##
+import copy
+from io import TextIOWrapper
+import csv
+
+from .structures import *
+
+
+##============Global variable============## 
+LogOut = False
 Province = 'province'
 City = 'city'
 Area = 'area'
 ErrorCode = -1
+# 直辖市
+munis = {'北京市', '天津市', '上海市', '重庆市','北京', '天津', '上海', '重庆'}
+
+##============Help Function============## 
+def Log(st):
+    if LogOut:
+        print(st)
+
+
+def is_munis(city_name):
+    return city_name in munis
+
+
+def munisEq(left, right):
+    return True if left[0:2] == right[0:2] else False
 
 def InputFromCSV(file_path):
     with open(file_path, 'r') as f:
@@ -40,16 +49,24 @@ def InputFromCSV(file_path):
     Log(addrList)
     return addrList
 
+
 def AddToCSV(file_path, strList):
     with open(file_path,'a') as fd:
         for line in strList:
             fd.write(line)
 
+
+def IsValid(pca):
+    cond1 = sum(pca.province.values()) == sum(pca.city.values())
+    cond2 = sum(pca.city.values()) == sum(pca.area.values())
+    return cond1 and cond2
+
+
 def ConcatPca(left, right):
     result = copy.copy(left)
 
     for k,v in right.province.items():
-        if k in result.province:
+        if k in result.province: 
             result.province[k] += v
         else:
             result.province[k] = v
@@ -66,8 +83,6 @@ def ConcatPca(left, right):
         else:
             result.area[k] = v
     return result
-
-
 
 
 def _data_from_csv() -> (AddrMap, AddrMap, AddrMap, dict, dict):
@@ -154,50 +169,23 @@ def _fill_province_map(province_map, record_dict):
         elif sheng == '澳门特别行政区':
             province_map['澳门'] = sheng
 
-
+##============Data Map============## 
 area_map, city_map, province_area_map, province_map, latlng = _data_from_csv()
 
-# 直辖市
-munis = {'北京市', '天津市', '上海市', '重庆市','北京', '天津', '上海', '重庆'}
 
-def is_munis(city_name):
-    return city_name in munis
-
-def munisEq(left, right):
-    return True if left[0:2] == right[0:2] else False
-
-myumap = {
-    '南关区': '长春市',
-    '南山区': '深圳市',
-    '宝山区': '上海市',
-    '市辖区': '东莞市',
-    '普陀区': '上海市',
-    '朝阳区': '北京市',
-    '河东区': '天津市',
-    '白云区': '广州市',
-    '西湖区': '杭州市',
-    '铁西区': '沈阳市',
-}
-
-
-def transform(location_strs, umap=myumap, index=[], cut=True, lookahead=8, pos_sensitive=False, open_warning=True):
+##============Functional Function============## 
+def transform(location_strs, index=[], cut=True, lookahead=8, pos_sensitive=False, open_warning=True):
     """将地址描述字符串转换以"省","市","区"信息为列的DataFrame表格
         Args:
             locations:地址描述字符集合,可以是list, Series等任意可以进行for in循环的集合
                       比如:["徐汇区虹漕路461号58号楼5楼", "泉州市洛江区万安塘西工业区"]
-            umap:自定义的区级到市级的映射,主要用于解决区重名问题,如果定义的映射在模块中已经存在，则会覆盖模块中自带的映射
-            index:可以通过这个参数指定输出的DataFrame的index,默认情况下是range(len(data))
-            cut:是否使用分词，默认使用，分词模式速度较快，但是准确率可能会有所下降
-            lookahead:只有在cut为false的时候有效，表示最多允许向前看的字符的数量
+            cut:[预留接口]使用分词，默认使用，分词模式速度较快，但是准确率可能会有所下降
+            lookahead:[预留接口]，只有在cut为false的时候有效，表示最多允许向前看的字符的数量
                       默认值为8是为了能够发现"新疆维吾尔族自治区"这样的长地名
                       如果你的样本中都是短地名的话，可以考虑把这个数字调小一点以提高性能
-            pos_sensitive:如果为True则会多返回三列，分别提取出的省市区在字符串中的位置，如果字符串中不存在的话则显示-1
-            open_warning: 是否打开umap警告, 默认打开
+            pos_sensitive:[预留接口]如果为True则会多返回三列，分别提取出的省市区在字符串中的位置，如果字符串中不存在的话则显示-1
         Returns:
-            一个Pandas的DataFrame类型的表格，如下：
-               |省    |市   |区    |地址                 |
-               |上海市|上海市|徐汇区|虹漕路461号58号楼5楼  |
-               |福建省|泉州市|洛江区|万安塘西工业区        |
+            tfResult：一个Pca instance
     """
 
     from collections.abc import Iterable
@@ -207,19 +195,16 @@ def transform(location_strs, umap=myumap, index=[], cut=True, lookahead=8, pos_s
         raise InputTypeNotSuportException(
             'location_strs参数必须为可迭代的类型(比如list, Series等实现了__iter__方法的对象)')
 
-    import pandas as pd
-
-    extract = [_handle_one_record(addr, umap, cut, lookahead, pos_sensitive, open_warning) for addr in location_strs]
+    extract = [_handle_one_record(addr, cut, lookahead, pos_sensitive, open_warning) for addr in location_strs]
 
     tfResult = Pca({}, {}, {}, -1, -1, -1)
     for i in extract:
-        i.show()
         tfResult = ConcatPca(tfResult, i)
     tfResult.show()
     return tfResult
 
 
-def _handle_one_record(addr, umap, cut, lookahead, pos_sensitive, open_warning):
+def _handle_one_record(addr, cut, lookahead, pos_sensitive, open_warning):
     """处理一条记录"""
 
     # 空记录
@@ -234,42 +219,7 @@ def _handle_one_record(addr, umap, cut, lookahead, pos_sensitive, open_warning):
     # 地名提取
     pca, addr = _extract_addr(addr, cut, lookahead)
 
-    _fill_city(pca, umap, open_warning)
-
-    _fill_province(pca)
-
-    return pca
-
-
-def _fill_province(pca):
-    """填充省"""
-    if (not pca.province) and pca.city and (pca.city in city_map):
-        pca.province = city_map.get_value(pca.city, P)
-
-
-def _fill_city(pca, umap, open_warning):
-    """填充市"""
-    if not pca.city:
-        # 从 区 映射
-        if pca.area:
-            # 从umap中映射
-            if umap.get(pca.area):
-                pca.city = umap.get(pca.area)
-                return
-            if pca.area in area_map and area_map.is_unique_value(pca.area):
-                pca.city = area_map.get_value(pca.area, C)
-                return
-
-        # 从 省,区 映射
-        if pca.area and pca.province:
-            newKey = (pca.province, pca.area)
-            if newKey in province_area_map and province_area_map.is_unique_value(newKey):
-                pca.city = province_area_map.get_value(newKey, C)
-                return
-
-        if open_warning:
-            import logging
-            logging.warning("%s 无法映射, 建议添加进umap中", pca.area)
+    return pca if IsValid(pca) else Pca({}, {}, {}, -1, -1, -1)
 
 
 def _extract_addr(addr, cut, lookahead):
@@ -278,13 +228,14 @@ def _extract_addr(addr, cut, lookahead):
            addr:原始地址字符串
            cut: 是否分词
        Returns:
-           [sheng, shi, qu, (sheng_pos, shi_pos, qu_pos)], addr
+           Pca instance
     """
     return _jieba_extract(addr) if cut else _full_text_extract(addr, lookahead)
 
 
 def _jieba_extract(addr):
-    """基于结巴分词进行提取"""
+    """基于结巴分词进行提取
+    """
     
 
     result = Pca({}, {}, {}, -1, -1, -1)
@@ -307,9 +258,6 @@ def _jieba_extract(addr):
 
     def _update_pca(pca_property, name, full_name):
         """pca_property: 'province', 'city' or 'area'"""
-        #print("property:", pca_property)
-        #print("get attr:", getattr(result, pca_property))
-        #print("name:", name)
 
         level = StringToLabel(pca_property)
         isExist = name in getattr(result, pca_property)
@@ -326,8 +274,6 @@ def _jieba_extract(addr):
             _update_pca('area', word, area_map.get_full_name(word))
 
     for word in jieba.cut(addr, cut_all=False):
-        # 优先提取低级别行政区 (主要是为直辖市和特别行政区考虑)
-        print(word, "\\")
 
         # 处理直辖市一二级单位名称相同
         if not is_munis(word):
@@ -346,11 +292,7 @@ def _jieba_extract(addr):
                 lastMunis = word
         pos += len(word)
 
-    Log("Prun Start")
-    result.show()
     result.Pruning()
-    result.show()
-    Log("Prun End")
 
     return result, addr[truncate:]
 

@@ -134,8 +134,8 @@ class Pca(object):
             else:
                 print("Unknow error")
 
-        print(self.sequence)
-        print(discreteIdx)
+        #print(self.sequence)
+        #print(discreteIdx)
 
         for i in range(len(discreteIdx)):
             if discreteIdx[i] == False:
