@@ -3,12 +3,14 @@
 
 ##============Jieba User Dict============## 
 import jieba
-## 向分词库添加行政区名称使其得以被识别
-jieba.add_word("西乡塘区")
 
+## 向分词库添加行政区名称使其得以被识别
+addWordList = ["西乡塘区"]
+jieba.add_word(i) for i in addWordList
+    
 ## 从分词库删除分词名称使其不被识别
-jieba.del_word("吉林省延边朝鲜族自治州")
-jieba.del_word("上海市浦东新区")
+delWordList = ["吉林省延边朝鲜族自治州", "上海市浦东新区"]
+jieba.del_word(i) for i in delWordList
 
 
 ##============Import Phase============##
